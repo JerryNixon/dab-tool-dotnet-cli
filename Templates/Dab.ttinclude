@@ -1,0 +1,196 @@
+﻿<#@ template    language    ="C#" #>
+<#@ assembly    name        ="System.Core" #>
+<#@ import      namespace   ="System.Linq" #>
+<#@ import      namespace   ="System.Collections.Generic" #>
+<#@ import      namespace   ="System.Collections" #>
+<#@ assembly    name        ="System.Text.RegularExpressions" #>
+<#@ import      namespace   ="System.Text.RegularExpressions" #>
+<#@ assembly    name        ="System.Globalization" #>
+<#@ import      namespace   ="System.Globalization" #>
+<#@ assembly    name        ="System.Text.Json" #>
+<#@ import      namespace   ="System.Text.Json" #><#+
+
+/// <summary>
+/// Converts a valid database name to a URL-safe name.
+/// This is especially useful for field names (like keys) that will appear in the URL.
+/// </summary>
+/// <param name="name">The database name to convert.</param>
+/// <returns>The URL-safe name.</returns>
+public static string GetMappingName(string name)
+{
+    /*
+    Examples:
+    Input: "name!@#$%^&*()_+-=[]{}|\,.<>?" => Output: "name"
+    Input: "example-database" => Output: "exampledatabase"
+    Input: "my_database_name" => Output: "mydatabasename"
+    Input: "user_email" => Output: "useremail"
+    Input: "product_123" => Output: "product123"
+    Input: "some-mixed-123-data" => Output: "somemixed123data"
+    Input: "test-name@789" => Output: "testname789"
+    */
+
+    // Removes any non-word characters, e.g., "camel Case" to "camelCase"
+    string result = Regex.Replace(name, @"\W+", "");
+
+    if (result.ToLower() == name.ToLower())
+    {
+        result = name;
+    }
+
+    return result;
+}
+
+
+/// <summary>
+/// Converts a valid database name to a .NET-safe name.
+/// This is especially valuable for names that become Class and Property names in models.
+/// </summary>
+/// <param name="name">The database name to convert.</param>
+/// <returns>The .NET-safe name.</returns>
+public static string GetNetName(string name)
+{
+    /*
+    Examples:
+    Input: "name!@#$%^&*()_+-=[]{}|\,.<>?" => Output: "Name"
+    Input: "example-database" => Output: "ExampleDatabase"
+    Input: "my_database_name" => Output: "MyDatabaseName"
+    Input: "user_email" => Output: "UserEmail"
+    Input: "product_123" => Output: "Product123"
+    Input: "some-mixed-123-data" => Output: "SomeMixed123Data"
+    Input: "test-name@789" => Output: "TestName789"
+    */
+
+    // Replaces non-word characters with an empty string, and converts the first character of each word to uppercase
+    string safeName = Regex.Replace(name, @"\W+(\w)?", match => match.Groups[1].Value.ToUpper());
+
+    return safeName;
+}
+
+/// <summary>
+/// Converts a valid database name to a URL-safe name for RESTful APIs.
+/// This is especially valuable for table names that will become the /path in a rest API. 
+/// </summary>
+/// <param name="name">The database name to convert.</param>
+/// <param name="schema">The optional schema name.</param>
+/// <returns>The URL-safe name for RESTful APIs.</returns>
+public static string GetRestName(string name, string schema = null)
+{
+    /*
+    Examples:
+    Input: "name!@#$%^&*()_+-=[]{}|\,.<>?" => Output: "name"
+    Input: "example-database" => Output: "example-database"
+    Input: "my_database_name" => Output: "my_database_name"
+    Input: "user_email" => Output: "user_email"
+    Input: "product_123" => Output: "product_123"
+    Input: "some-mixed-123-data" => Output: "some-mixed-123-data"
+    Input: "test-name@789" => Output: "test-name789"
+    */
+
+    // Combines the schema and name if the schema is provided, e.g., "dbo.TableName"
+    string fullName = (schema is null) ? name : $"{schema}.{name}";
+    
+    // Removes any characters that are not allowed in a URL, e.g., "dbo.TableName" to "dboTableName"
+    string safeName = Regex.Replace(fullName, @"[^\p{Ll}\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{Nd}\p{Nl}\p{Pc}\p{Cf}]", "");
+    
+    // URL-encodes the safe name to handle special characters, e.g., "dboTableName" to "dboTableName"
+    safeName = Uri.EscapeDataString(safeName.ToLower());
+    
+    return safeName;
+}
+
+public enum DboType 
+{ 
+    Table, 
+    View, 
+    Procedure 
+}
+
+public class DboInfo
+{
+    public string Schema;
+    public string Name;
+    public string CsharpName => GetNetName(Name);
+    public string Source => $"[{Schema}].[{Name}]";
+    public string Label;
+    public DboType Type;
+    public string RestPath;
+    public string FieldMap;
+    public IEnumerable<ParameterInfo> Parameters;
+    public IEnumerable<ColumnInfo> Columns;
+    public IEnumerable<ColumnInfo> KeyColumns => Columns.Where(x => x.IsKey || x.MaybeKey).Distinct();
+}
+
+public class ParameterInfo
+{
+    public string Name;
+    public string CsharpName => GetNetName(Name);
+    public string JsonName => GetMappingName(Name);
+    public string NetType;
+}
+
+public class ColumnInfo
+{
+    public string Name;
+    public string CsharpName => GetNetName(Name);
+    public string JsonName => GetMappingName(Name);
+    public string NetType;
+    public bool IsKey;
+    public bool MaybeKey;
+    public bool IsComputed;
+}
+
+public IEnumerable<DboInfo> GetDbInfo()
+{
+    var dictionary = JsonSerializer.Deserialize<Dictionary<string, object?>[]>(readerJson);
+    var schemas = GetSchemasCount();
+
+    return dictionary.Select(reader =>
+    {
+        var dbo = new DboInfo
+        {
+            Schema = reader["schema_name"].ToString(),
+            Name = reader["object_name"].ToString(),
+            Type = Enum.TryParse<DboType>(reader["object_type"].ToString(), true, out var result) ? result : throw new Exception($"Cannot parse DboType \"{reader["object_type"]}\" for dbo.Type."),
+            FieldMap = GetFieldMap(reader),
+            Columns = GetColumns(reader),
+            Parameters = GetParameters(reader)
+        };
+
+        dbo.Label = (schemas == 1) ? dbo.Name : $"{dbo.Schema}.{dbo.Name}";
+        dbo.RestPath = GetRestName(dbo.Name, (schemas == 1) ? null : dbo.Schema);
+
+        return dbo;
+    }).ToList();
+
+    int GetSchemasCount()
+    {
+        return dictionary.Select(x => x["schema_name"].ToString()).Distinct().Count();
+    }
+
+    string GetFieldMap(Dictionary<string, object?> reader)
+    {
+        return string.Join(",", reader["column_names"].ToString().Split(',').Where(x => !string.IsNullOrEmpty(x)).Select(x => $"{x}:{GetMappingName(x)}"));
+    }
+
+    IEnumerable<ColumnInfo> GetColumns(Dictionary<string, object?> reader)
+    {
+        return reader["column_names"].ToString().Split(',')
+            .Zip(reader["column_net_types"].ToString().Replace("string?", "string").Split(','), (n, t) => new { Name = n, NetType = t })
+            .Zip(reader["primary_key"].ToString().Split(',').Select(x => bool.Parse(x)), (z, k) => new { z.Name, z.NetType, IsKey = k })
+            .Zip(reader["inferred_key"].ToString().Split(',').Select(x => bool.Parse(x)), (z, k) => new { z.Name, z.NetType, z.IsKey, MaybeKey = reader["primary_key"].ToString().Split(',').Any(k => bool.Parse(k)) ? false : k })
+            .Zip(reader["is_computed"].ToString().Split(',').Select(x => bool.Parse(x)), (z, c) => new { z.Name, z.NetType, z.IsKey, z.MaybeKey, IsComputed = c })
+            .Where(z => !string.IsNullOrEmpty(z.Name))
+            .OrderByDescending(x => x.IsKey).ThenByDescending(x => x.MaybeKey).ThenBy(x => x.IsComputed)
+            .Select(z => new ColumnInfo { Name = z.Name, NetType = z.NetType, IsKey = z.IsKey, MaybeKey = z.MaybeKey, IsComputed = z.IsComputed });
+    }
+
+    IEnumerable<ParameterInfo> GetParameters(Dictionary<string, object?> reader)
+    {
+        var paramNames = reader["parameter_names"]?.ToString()?.Split(',');
+        var paramNetTypes = reader["parameter_net_types"]?.ToString()?.Split(',');
+
+        return paramNames?.Zip(paramNetTypes, (n, t) => new ParameterInfo { Name = n, NetType = t }).Where(x => !string.IsNullOrEmpty(x.Name)) ?? Enumerable.Empty<ParameterInfo>();
+    }
+}
+
+#>

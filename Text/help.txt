@@ -1,0 +1,36 @@
+﻿Data API builder quickstart tool. 
+
+Overview:
+	1. Transforms selected template, creates file
+	2. Writes connection string to environment (optional)
+	3. Opens created template output file (optional)
+
+Usage:
+	dab.tool <options>
+
+Options:
+	-c, --connectionstring			The connection string to use (Windows or SQL authentication required)
+	-ce, --connectionenvironment	The envionrment variable holding the connection string to use (Scope: User then Machine)
+	-db, --databasetype				The target database type, default [mssql]
+		mssql			Microsoft SQL Server / Azure SQL DB
+		cosmosdb		Azure CosmosDB (not yet supported)
+		mysql 			MySql dataabse (not yet supported)
+		postgres		PostgreSQL (not yet supported)
+	-e, --environmentvariable		The environment variable name (User Scope) to write connectionstring to. Default [my-connection-string]
+	--echo							Echo the connection string to console.
+	-noe, --noenvironment			No environment variable. Do not write connectionstring to environment variable.
+	-non, --nonotepad				No notepad. Do not open output file (in Notepad) after run.
+	-o, --outputfile				The output file fil wrote to. Default [out.txt] (Existing is overwritten)
+	--sample						Create script based off a sample database schema. (No database needed, testing only) 
+	-t, --template]					The template to execute. Default (s)cript.
+		 s = (s)cript	Creates (s)cript to build dab-config.json
+		 m = (m)odels	Creates C# (m)odels for REST payload 
+		 c = (c)onfig	Creates (s)cript, runs (s)cript to create dab-config.json file.
+	-?, -h, --help					Show command line help.
+
+Examples:
+	dab.tool -?
+	dab.tool -t s -o output.txt -db mssql -ce "my-connection-string"
+	dab.tool -t s -o output.txt -db mssql -c "Server=.;Database=db;TrustServerCertificate=True;"
+	dab.tool -t s -o output.txt -db mssql -c "Server=(localdb)\\MSSQLLocalDB;Database=db;User ID=user;Password=secret;"
+	dab.tool -t s -o output.txt -db mssql -c "Server=tcp:server123.database.windows.net;Database=db;User ID=user;Password=secret;Encrypt=True;"

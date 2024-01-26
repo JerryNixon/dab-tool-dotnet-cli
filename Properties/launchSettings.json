@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Dab.Tool": {
+      "commandName": "Project",
+      "commandLineArgs": "--echo -db mssql -t c -o out.cmd -c \"Server=(localdb)\\\\MSSQLLocalDB;Database=dab;User ID=DabLogin;Password=P@ssw0rd!;\"",
+      "workingDirectory": "c:\\temp\\dab",
+      "sqlDebugging": true
+    }
+  }
+}

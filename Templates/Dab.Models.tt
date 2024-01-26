@@ -1,0 +1,76 @@
+﻿﻿<#@ template language="C#" hostspecific="true" #>
+<#@ parameter name='root' #>
+<#@ parameter name='readerJson' #>
+<#@ include file="Dab.ttinclude" #>
+<# var NamespaceHint = "Models"; #>
+// more info at https://aka.ms/dab
+// more info at https://aka.ms/dabdocs
+
+using System;
+using System.Diagnostics;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
+
+namespace <#=NamespaceHint#>
+{
+    public abstract class Poco { /* TODO */ }
+}
+
+<#
+    var Cache = GetDbInfo();
+    foreach (var schema in Cache.Select(x => x.Schema).Distinct()) 
+    { 
+#> 
+namespace <#=NamespaceHint#>.<#= schema #>
+{
+<#
+    // looping through tables, views, procs
+    foreach (var dbo in Cache) 
+    { 
+        // building the debugger display string
+        var display = string.Empty;
+        if (dbo.KeyColumns.Any())
+        {
+            display = string.Join(", ", dbo.KeyColumns.Select(x => $"{x.Name} = {{{x.Name}}}"));
+            if (display.Length == 0 && dbo.Parameters.Any())
+            {
+                display = string.Join(", ", dbo.Parameters.Where(x => !string.IsNullOrEmpty(x.Name)).Select(x => $"{x.Name} = {{Parameters.{x.Name}}}"));
+            }
+        }
+        display = (display.Length == 0) ? "keyless" : display;
+#>
+    [DebuggerDisplay("<#= schema #>.<#= dbo.Name #> (<#=display#>) [<#=dbo.Type#>]")]
+    public partial class <#= dbo.CsharpName #> : Poco 
+    {
+    <#
+        // looping through columns
+        foreach (var column in dbo.Columns) 
+    {#>
+    <#if (column.IsKey || column.MaybeKey) 
+    {#>[Key]
+        <#}#><#if (column.IsComputed) {#>[ReadOnly(true)]
+        <#}#><#if (column.JsonName != column.CsharpName) { #>[JsonPropertyName("<#=column.JsonName#>")]
+        <#}#>public <#=column.NetType#> <#=column.CsharpName#> { get; set; } = default!;
+
+    <#}
+        // this section is only valid for procedures
+        if (dbo.Parameters.Any()) 
+        {#>    [JsonIgnore]
+        public ParameterInfo Parameters { get; set; } = new();
+
+        public class ParameterInfo
+        {
+        <#
+            // looping through parameters
+            foreach (var p in dbo.Parameters) 
+            {#>    public <#=p.NetType#> <#=p.CsharpName#> { get; set; } = default!;
+        <#}#>
+}
+    }
+<#} else {#>}
+<#}#>
+
+<#}#>
+}<#}#>

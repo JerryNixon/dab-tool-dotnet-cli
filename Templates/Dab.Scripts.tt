@@ -1,0 +1,43 @@
+﻿﻿<#@ template language="C#" hostspecific="true" #>
+<#@ parameter name='readerJson' #>
+<#@ parameter name='environment' #>
+<#@ parameter name='root' #>
+<#@ include file="Dab.ttinclude" #>
+# more info at https://aka.ms/dab
+# more info at https://aka.ms/dabdocs
+
+#dotnet tool install --global Microsoft.DataApiBuilder 
+#dotnet tool update --global Microsoft.DataApiBuilder 
+
+del dab-config.json
+dab init --config "dab-config.json" --host-mode development --database-type mssql --set-session-context true --connection-string "@env('<#=environment#>')"
+
+<#
+    var Cache = GetDbInfo();
+    foreach (var dbo in Cache.Where(x => x.Type == DboType.Table || x.Type == DboType.View))
+    {
+        var keys = string.Empty;
+        if (dbo.KeyColumns.Any())
+        {
+            keys = string.Join(",", dbo.KeyColumns.OrderByDescending(x => x.IsKey).ThenBy(x => x.Name).Select(x => $"{x.Name}"));
+            keys = dbo.KeyColumns.Any() ? "--source.key-fields \"" + keys + "\"" : string.Empty;
+        }
+        var auth = (dbo.Type == DboType.View) ? "read" : "create,read,update,delete";
+#>
+dab add "<#=dbo.Label#>" --config "dab-config.json" --source "<#=dbo.Source#>" --source.type "<#=dbo.Type#>" <#=keys#> --rest "<#=dbo.RestPath#>" --permissions "anonymous:<#=auth#>"
+dab update "<#=dbo.Label#>" --config "dab-config.json" --map "<#=dbo.FieldMap#>"
+
+<#}
+    foreach (var proc in Cache.Where(x => x.Type == DboType.Procedure))
+    {
+        var parameters = string.Empty;
+        if (proc.Parameters.Any())
+        {
+            parameters = string.Join(",", proc.Parameters.Select(x => x.Name).OrderBy(x => x).Select(x => $"{x}:"));
+            parameters = $"--source.params \"{parameters}\"";
+        }
+#>
+dab add "<#=proc.Label#>" --config "dab-config.json" --source "<#=proc.Source#>" --source.type "stored-procedure" <#=parameters#> --rest.methods "get" --rest "<#=proc.RestPath#>" --permissions "anonymous:execute"
+dab update "<#=proc.Label#>" --config "dab-config.json" --map "<#=proc.FieldMap#>"
+
+<# }#>

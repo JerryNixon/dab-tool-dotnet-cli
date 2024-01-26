@@ -1,0 +1,56 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net6.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>dab.tool</ToolCommandName>
+		<PackageOutputPath>./nupkg</PackageOutputPath>
+		<Authors>jerrynixon</Authors>
+		<Version>0.0.5</Version>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Title>Data API builder CLI helper tool</Title>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="nupkg\**" />
+	  <EmbeddedResource Remove="nupkg\**" />
+	  <None Remove="nupkg\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Mono.TextTemplating.Roslyn" Version="2.3.1" />
+		<PackageReference Include="MySql.Data" Version="8.1.0" />
+		<PackageReference Include="Npgsql" Version="7.0.4" />
+		<PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Update="Text\help.txt">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Text\sample.json">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Text\mssql.sql">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Templates\Dab.ttinclude">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Templates\Dab.Scripts.tt">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Templates\Dab.Models.tt">
+	    <Generator></Generator>
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+	</ItemGroup>
+
+</Project>
