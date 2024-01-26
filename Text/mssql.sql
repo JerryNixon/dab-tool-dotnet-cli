@@ -26,7 +26,7 @@
     STRING_AGG(t.name, ',') AS parameter_sql_types,  
     STRING_AGG(CONCAT(ttypes.net_type, CASE WHEN t.is_nullable = 1 THEN '?' END), ',') AS parameter_net_types 
     FROM sys.procedures p  
-    JOIN sys.schemas s ON p.schema_id = s.schema_id 
+    JOIN sys.schemas s ON p.schema_id = s.schema_id AND s.name != 'sys'
     LEFT JOIN sys.parameters d ON p.object_id = d.object_id AND d.parameter_id > 0
     LEFT JOIN sys.types t ON d.system_type_id = t.system_type_id   
     LEFT JOIN types AS ttypes ON ttypes.system_type_id = t.system_type_id    
@@ -70,13 +70,15 @@ SELECT
     STRING_AGG(CASE WHEN cc.name IS NOT NULL THEN 'true' WHEN c.is_identity = 1 THEN 'true' ELSE 'false' END, ',') AS is_computed,
     STRING_AGG(CASE WHEN c.name LIKE '%id' OR c.name LIKE 'id%' OR c.name LIKE '%pk%' OR c.name LIKE '%uid%' OR c.name LIKE '%key%' THEN 'true' ELSE 'false' END, ',') AS inferred_key
 FROM sys.tables t
-JOIN sys.schemas s ON t.schema_id = s.schema_id
+JOIN sys.schemas s ON t.schema_id = s.schema_id AND s.name != 'sys'
 JOIN sys.columns c ON t.object_id = c.object_id AND PATINDEX('%[^a-zA-Z0-9_]%', c.name) = 0
 JOIN types AS ctypes ON ctypes.system_type_id = c.system_type_id 
 LEFT JOIN sys.indexes i ON i.object_id = t.object_id AND i.is_primary_key = 1
 LEFT JOIN sys.index_columns ic ON ic.object_id = t.object_id AND ic.index_id = i.index_id AND ic.column_id = c.column_id
 LEFT JOIN sys.computed_columns cc ON c.object_id = cc.object_id AND c.column_id = cc.column_id
 WHERE c.graph_type IS NULL 
+    AND t.is_ms_shipped = 0
+    AND t.name != 'sysdiagrams'
 GROUP BY 
     s.name,
     t.name
